@@ -20,6 +20,44 @@ CREATE TABLE IF NOT EXISTS memories (
 conn.commit()
 
 # -----------------------
+# Conversation Memory
+# -----------------------
+
+conversation_history = []
+MAX_CONVERSATION_TURNS = 12
+
+
+def build_chat_messages(user_input, memory_text):
+    messages = [
+        {
+            "role": "system",
+            "content": f"""
+Your name is Doll.
+
+You are the personal AI assistant of Jessel.
+
+Always address the user as Boss.
+
+These are permanent memories about your owner Jessel.
+
+You must use these memories when answering questions about Jessel.
+
+If the answer exists in memory, prioritize memory over assumptions.
+
+MEMORIES:
+{memory_text}
+"""
+        }
+    ]
+
+    recent_history = conversation_history[-MAX_CONVERSATION_TURNS:]
+    messages.extend(recent_history)
+    messages.append({"role": "user", "content": user_input})
+
+    return messages
+
+
+# -----------------------
 # Functions
 # -----------------------
 
@@ -155,6 +193,17 @@ while True:
 
         break
 
+    # Clear Conversation History
+
+    if user_input.lower() == "clear chat":
+
+        conversation_history.clear()
+
+        print("\nDoll:")
+        print("The conversation history has been cleared, Boss.\n")
+
+        continue
+
     # Remember
 
     if user_input.lower().startswith("remember "):
@@ -238,35 +287,18 @@ while True:
 
     # Send To Model
 
+    messages = build_chat_messages(user_input, memory_text)
+
     response = chat(
         model="qwen2.5:3b",
-        messages=[
-            {
-                "role": "system",
-                "content": f"""
-Your name is Doll.
-
-You are the personal AI assistant of Jessel.
-
-Always address the user as Boss.
-
-These are permanent memories about your owner Jessel.
-
-You must use these memories when answering questions about Jessel.
-
-If the answer exists in memory, prioritize memory over assumptions.
-
-MEMORIES:
-{memory_text}
-"""
-            },
-            {
-                "role": "user",
-                "content": user_input
-            }
-        ]
+        messages=messages
     )
 
+    assistant_reply = response["message"]["content"]
+
+    conversation_history.append({"role": "user", "content": user_input})
+    conversation_history.append({"role": "assistant", "content": assistant_reply})
+
     print("\nDoll:")
-    print(response["message"]["content"])
+    print(assistant_reply)
     print()
