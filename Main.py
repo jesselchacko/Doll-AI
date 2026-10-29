@@ -1,5 +1,6 @@
 from ollama import chat
 import sqlite3
+import re
 from datetime import datetime
 from difflib import SequenceMatcher
 
@@ -24,7 +25,39 @@ conn.commit()
 # -----------------------
 
 conversation_history = []
+conversation_summary = ""
 MAX_CONVERSATION_TURNS = 12
+
+
+def update_conversation_summary():
+    global conversation_summary
+
+    if len(conversation_history) < 2:
+        conversation_summary = ""
+        return
+
+    recent_history = conversation_history[-MAX_CONVERSATION_TURNS:]
+    history_text = "\n".join(
+        f"{entry['role']}: {entry['content']}" for entry in recent_history
+    )
+
+    try:
+        summary_response = chat(
+            model="qwen2.5:3b",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You create a brief memory summary for a personal assistant. Keep only important facts, preferences, and recent topics. Output 1 to 3 short sentences."
+                },
+                {
+                    "role": "user",
+                    "content": f"Summarize this conversation concisely:\n{history_text}"
+                }
+            ]
+        )
+        conversation_summary = summary_response["message"]["content"].strip()
+    except Exception:
+        conversation_summary = history_text[:300].strip()
 
 
 def build_chat_messages(user_input, memory_text):
@@ -43,6 +76,8 @@ These are permanent memories about your owner Jessel.
 You must use these memories when answering questions about Jessel.
 
 If the answer exists in memory, prioritize memory over assumptions.
+
+{f'CONVERSATION SUMMARY:\n{conversation_summary}\n' if conversation_summary else ''}
 
 MEMORIES:
 {memory_text}
@@ -114,56 +149,39 @@ def recall_memories():
 
 def is_time_request(text):
 
-    text = text.lower()
+    text = text.lower().strip()
 
-    keywords = [
-        "time",
-        "clock"
+    if not text:
+        return False
+
+    patterns = [
+        r"\b(what|what's|whats)\s+(the\s+)?time\b",
+        r"\b(what\s+time|what's\s+the\s+time|what\s+is\s+the\s+time|tell\s+me\s+the\s+time)\b",
+        r"\b(time)\s+(is|is it|now|right now)\b",
+        r"\bcurrent\s+time\b",
+        r"\bwhat\s+time\b"
     ]
 
-    words = text.split()
-
-    for word in words:
-
-        for keyword in keywords:
-
-            similarity = SequenceMatcher(
-                None,
-                word,
-                keyword
-            ).ratio()
-
-            if similarity >= 0.8:
-                return True
-
-    return False
+    return any(re.search(pattern, text) for pattern in patterns)
 
 
 def is_date_request(text):
 
-    text = text.lower()
+    text = text.lower().strip()
 
-    keywords = [
-        "date",
-        "today"
+    if not text:
+        return False
+
+    patterns = [
+        r"\b(what|what's|whats)\s+(the\s+)?date\b",
+        r"\b(what\s+date|what's\s+the\s+date|what\s+is\s+the\s+date|tell\s+me\s+the\s+date)\b",
+        r"\b(date)\s+(is|is it|today|now)\b",
+        r"\bcurrent\s+date\b",
+        r"\b(today|todays|today's)\s+(date|day)\b",
+        r"\bwhat\s+date\b"
     ]
 
-    words = text.split()
-
-    for word in words:
-
-        for keyword in keywords:
-
-            similarity = SequenceMatcher(
-                None,
-                word,
-                keyword
-            ).ratio()
-
-            if similarity >= 0.8:
-                return True
-
-    return False
+    return any(re.search(pattern, text) for pattern in patterns)
 
 
 # -----------------------
@@ -198,9 +216,20 @@ while True:
     if user_input.lower() == "clear chat":
 
         conversation_history.clear()
+        conversation_summary = ""
 
         print("\nDoll:")
         print("The conversation history has been cleared, Boss.\n")
+
+        continue
+
+    if user_input.lower() in ("show chat summary", "summarize chat"):
+
+        print("\nDoll:")
+        if conversation_summary:
+            print(f"{conversation_summary}\n")
+        else:
+            print("There is no active conversation summary yet, Boss.\n")
 
         continue
 
@@ -298,6 +327,7 @@ while True:
 
     conversation_history.append({"role": "user", "content": user_input})
     conversation_history.append({"role": "assistant", "content": assistant_reply})
+    update_conversation_summary()
 
     print("\nDoll:")
     print(assistant_reply)
