@@ -159,12 +159,27 @@ def format_memory_fact(fact):
         return f"You are {text[3:]}."
     if lowered.startswith("i'm "):
         return f"You are {text[4:]}."
+    if lowered.startswith("my name is "):
+        return f"Your name is {text[11:]}."
+    if lowered.startswith("my age is "):
+        age = text[9:]
+        return f"You are {age} years old."
+    if lowered.startswith("my favorite "):
+        return f"Your favorite {text[12:]}."
     if lowered.startswith("my "):
         return f"Your {text[3:]}."
     if lowered.startswith("you are "):
         return text if text.endswith((".", "!", "?")) else f"{text}."
     if lowered.startswith("your "):
         return text if text.endswith((".", "!", "?")) else f"{text}."
+    if lowered.startswith("i like "):
+        return f"You like {text[7:]}."
+    if lowered.startswith("i love "):
+        return f"You love {text[7:]}."
+    if lowered.startswith("i prefer "):
+        return f"You prefer {text[9:]}."
+    if lowered.startswith("i work as "):
+        return f"You work as {text[10:]}."
     if text.endswith((".", "!", "?")):
         return text
     return f"{text}."
@@ -178,7 +193,21 @@ def recall_memories_for_display():
         return "No memories stored yet, Boss."
 
     formatted = [format_memory_fact(row[0]) for row in rows]
-    return "Here are the memories I have stored, Boss:\n- " + "\n- ".join(formatted)
+    formatted = [item for item in formatted if item]
+
+    if not formatted:
+        return "No memories stored yet, Boss."
+
+    if len(formatted) == 1:
+        sentence = formatted[0]
+        if sentence.lower().startswith("you are "):
+            return f"I remember that {sentence.lower()}"
+        if sentence.lower().startswith("your "):
+            return f"I remember that {sentence.lower()}"
+        return f"I remember that {sentence}"
+
+    combined = " ".join(formatted)
+    return f"I remember that {combined.lower()}"
 
 
 def normalize_input(text):
