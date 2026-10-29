@@ -1,7 +1,11 @@
-from ollama import chat
-import sqlite3
 import re
+import sqlite3
+import sys
 from datetime import datetime
+from tkinter import scrolledtext, ttk
+import tkinter as tk
+
+from ollama import chat
 
 # -----------------------
 # Database Setup
@@ -96,7 +100,6 @@ MEMORIES:
 # -----------------------
 
 def remember(fact):
-
     cursor.execute(
         "SELECT fact FROM memories WHERE fact = ?",
         (fact,)
@@ -111,33 +114,26 @@ def remember(fact):
     )
 
     conn.commit()
-
     return True
 
 
 def forget(fact):
-
     cursor.execute(
         "DELETE FROM memories WHERE fact = ?",
         (fact,)
     )
 
     conn.commit()
-
     return cursor.rowcount > 0
 
 
 def clear_memories():
-
     cursor.execute("DELETE FROM memories")
-
     conn.commit()
 
 
 def recall_memories():
-
     cursor.execute("SELECT fact FROM memories")
-
     rows = cursor.fetchall()
 
     if not rows:
@@ -188,138 +184,8 @@ def is_date_request(text):
     return any(re.search(pattern, text) for pattern in patterns)
 
 
-# -----------------------
-# Doll Startup
-# -----------------------
-
-print("Doll is online.")
-print("Hello, Boss.")
-print("Type 'exit' to shut down.\n")
-
-
-# -----------------------
-# Main Loop
-# -----------------------
-
-while True:
-
-    user_input = input("You: ")
-
-    # Exit
-
-    if user_input.lower() == "exit":
-
-        conn.close()
-
-        print("Goodbye, Boss.")
-
-        break
-
-    # Clear Conversation History
-
-    if user_input.lower() == "clear chat":
-
-        conversation_history.clear()
-        conversation_summary = ""
-
-        print("\nDoll:")
-        print("The conversation history has been cleared, Boss.\n")
-
-        continue
-
-    if user_input.lower() in ("show chat summary", "summarize chat"):
-
-        print("\nDoll:")
-        if conversation_summary:
-            print(f"{conversation_summary}\n")
-        else:
-            print("There is no active conversation summary yet, Boss.\n")
-
-        continue
-
-    # Remember
-
-    if user_input.lower().startswith("remember "):
-
-        fact = user_input[9:]
-
-        saved = remember(fact)
-
-        print("\nDoll:")
-
-        if saved:
-            print("I will remember that, Boss.\n")
-        else:
-            print("I already know that, Boss.\n")
-
-        continue
-
-    # Forget
-
-    if user_input.lower().startswith("forget "):
-
-        fact = user_input[7:]
-
-        deleted = forget(fact)
-
-        print("\nDoll:")
-
-        if deleted:
-            print("I have forgotten that memory, Boss.\n")
-        else:
-            print("I couldn't find that memory, Boss.\n")
-
-        continue
-
-    # Show Memories
-
-    if user_input.lower() == "show memories":
-
-        print("\nDoll:")
-        print(recall_memories())
-        print()
-
-        continue
-
-    # Clear Memories
-
-    if user_input.lower() == "clear memories":
-
-        clear_memories()
-
-        print("\nDoll:")
-        print("All memories have been cleared, Boss.\n")
-
-        continue
-
-    # Current Time
-
-    if is_time_request(user_input):
-
-        current_time = datetime.now().strftime("%I:%M:%S %p")
-
-        print("\nDoll:")
-        print(f"The current time is {current_time}, Boss.\n")
-
-        continue
-
-    # Current Date
-
-    if is_date_request(user_input):
-
-        current_date = datetime.now().strftime("%d %B %Y")
-
-        print("\nDoll:")
-        print(f"Today's date is {current_date}, Boss.\n")
-
-        continue
-
-    # Load Memories
-
+def generate_assistant_reply(user_input):
     memory_text = recall_memories()
-
-    # Send To Model
-
     messages = build_chat_messages(user_input, memory_text)
 
     response = chat(
@@ -333,6 +199,154 @@ while True:
     conversation_history.append({"role": "assistant", "content": assistant_reply})
     update_conversation_summary()
 
-    print("\nDoll:")
-    print(assistant_reply)
-    print()
+    return assistant_reply
+
+
+def handle_user_input(user_input):
+    user_input = user_input.strip()
+
+    if not user_input:
+        return "Type something, Boss."
+
+    lower_input = user_input.lower()
+
+    if lower_input == "exit":
+        conn.close()
+        return "Goodbye, Boss."
+
+    if lower_input == "clear chat":
+        conversation_history.clear()
+        conversation_summary = ""
+        return "The conversation history has been cleared, Boss."
+
+    if lower_input in ("show chat summary", "summarize chat"):
+        if conversation_summary:
+            return conversation_summary
+        return "There is no active conversation summary yet, Boss."
+
+    if lower_input.startswith("remember "):
+        fact = user_input[9:]
+        saved = remember(fact)
+        if saved:
+            return "I will remember that, Boss."
+        return "I already know that, Boss."
+
+    if lower_input.startswith("forget "):
+        fact = user_input[7:]
+        deleted = forget(fact)
+        if deleted:
+            return "I have forgotten that memory, Boss."
+        return "I couldn't find that memory, Boss."
+
+    if lower_input == "show memories":
+        return recall_memories()
+
+    if lower_input == "clear memories":
+        clear_memories()
+        return "All memories have been cleared, Boss."
+
+    if is_time_request(user_input):
+        current_time = datetime.now().strftime("%I:%M:%S %p")
+        return f"The current time is {current_time}, Boss."
+
+    if is_date_request(user_input):
+        current_date = datetime.now().strftime("%d %B %Y")
+        return f"Today's date is {current_date}, Boss."
+
+    return generate_assistant_reply(user_input)
+
+
+# -----------------------
+# Console Interface
+# -----------------------
+
+def run_cli():
+    print("Doll is online.")
+    print("Hello, Boss.")
+    print("Type 'exit' to shut down.\n")
+
+    while True:
+        user_input = input("You: ")
+        response = handle_user_input(user_input)
+
+        print("\nDoll:")
+        print(response)
+        print()
+
+        if user_input.lower() == "exit":
+            break
+
+
+# -----------------------
+# GUI Interface (v0.5)
+# -----------------------
+
+class DollGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Doll v0.5")
+        self.root.geometry("900x650")
+        self.root.minsize(700, 500)
+
+        self.chat_area = scrolledtext.ScrolledText(
+            root,
+            wrap=tk.WORD,
+            font=("Segoe UI", 11),
+            padx=10,
+            pady=10,
+            state="disabled"
+        )
+        self.chat_area.pack(fill=tk.BOTH, expand=True, padx=12, pady=(12, 8))
+
+        input_frame = ttk.Frame(root)
+        input_frame.pack(fill=tk.X, padx=12, pady=(0, 12))
+
+        self.input_box = ttk.Entry(input_frame)
+        self.input_box.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.input_box.focus_set()
+
+        self.send_button = ttk.Button(input_frame, text="Send")
+        self.send_button.pack(side=tk.RIGHT, padx=(8, 0))
+
+        self.input_box.bind("<Return>", self.on_send)
+        self.send_button.configure(command=self.on_send)
+
+        self.append_text("Doll is online.\nHello, Boss.\nType 'exit' to shut down.\n")
+
+    def append_text(self, text):
+        self.chat_area.configure(state="normal")
+        self.chat_area.insert(tk.END, text)
+        self.chat_area.configure(state="disabled")
+        self.chat_area.see(tk.END)
+
+    def on_send(self, event=None):
+        user_input = self.input_box.get().strip()
+        self.input_box.delete(0, tk.END)
+
+        if not user_input:
+            return
+
+        self.append_text(f"You: {user_input}\n")
+
+        response = handle_user_input(user_input)
+        self.append_text(f"Doll: {response}\n\n")
+
+        if user_input.lower() == "exit":
+            self.root.after(250, self.root.destroy)
+
+
+def run_gui():
+    root = tk.Tk()
+    app = DollGUI(root)
+    root.mainloop()
+
+
+# -----------------------
+# Entry Point
+# -----------------------
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--cli":
+        run_cli()
+    else:
+        run_gui()
