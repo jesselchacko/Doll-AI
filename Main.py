@@ -29,7 +29,8 @@ conn.commit()
 
 conversation_history = []
 conversation_summary = ""
-MAX_CONVERSATION_TURNS = 12
+MAX_CONVERSATION_TURNS = 5
+MAX_MEMORY_FACTS = 5
 
 
 def get_time_based_greeting():
@@ -75,11 +76,28 @@ def update_conversation_summary():
                     "role": "user",
                     "content": f"Summarize this conversation concisely:\n{history_text}"
                 }
-            ]
+            ],
+            options={"num_ctx": 1024, "num_predict": 80}
         )
         conversation_summary = summary_response["message"]["content"].strip()
     except Exception:
         conversation_summary = history_text[:300].strip()
+
+
+def get_recent_memory_facts(limit=MAX_MEMORY_FACTS):
+    cursor.execute(
+        "SELECT fact FROM memories ORDER BY id DESC LIMIT ?",
+        (limit,)
+    )
+    rows = cursor.fetchall()
+    return [row[0] for row in reversed(rows)]
+
+
+def get_memory_context_for_prompt(limit=MAX_MEMORY_FACTS):
+    facts = get_recent_memory_facts(limit)
+    if not facts:
+        return "No memories stored yet, Boss."
+    return "\n".join(facts)
 
 
 def build_chat_messages(user_input, memory_text):
@@ -294,12 +312,13 @@ def is_exit_request(text):
 
 
 def generate_assistant_reply(user_input):
-    memory_text = recall_memories()
+    memory_text = get_memory_context_for_prompt()
     messages = build_chat_messages(user_input, memory_text)
 
     response = chat(
         model="qwen2.5:3b",
-        messages=messages
+        messages=messages,
+        options={"num_ctx": 1024, "num_predict": 120}
     )
 
     assistant_reply = response["message"]["content"]
