@@ -32,6 +32,25 @@ conversation_summary = ""
 MAX_CONVERSATION_TURNS = 12
 
 
+def get_time_based_greeting():
+    hour = datetime.now().hour
+
+    if 5 <= hour < 12:
+        return "Good morning, Boss."
+    if 12 <= hour < 17:
+        return "Good afternoon, Boss."
+    if 17 <= hour < 21:
+        return "Good evening, Boss."
+    return "Hello, Boss."  # no night greeting at startup
+
+
+def get_night_session_closing_message():
+    hour = datetime.now().hour
+    if 21 <= hour or hour < 5:
+        return "Good night, Boss."
+    return "Goodbye, Boss."
+
+
 def update_conversation_summary():
     global conversation_summary
 
@@ -280,7 +299,7 @@ def handle_user_input(user_input):
 
     if lower_input == "exit":
         conn.close()
-        return "Goodbye, Boss."
+        return get_night_session_closing_message()
 
     if lower_input == "clear chat":
         conversation_history.clear()
@@ -330,7 +349,7 @@ def handle_user_input(user_input):
 
 def run_cli():
     print("Doll is online.")
-    print("Hello, Boss.")
+    print(get_time_based_greeting())
     print("Type 'exit' to shut down.\n")
 
     while True:
@@ -379,7 +398,7 @@ class DollGUI:
         self.input_box.bind("<Return>", self.on_send)
         self.send_button.configure(command=self.on_send)
 
-        self.append_text("Doll is online.\nHello, Boss.\nType 'exit' to shut down.\n")
+        self.append_text(f"Doll is online.\n{get_time_based_greeting()}\nType 'exit' to shut down.\n")
 
     def append_text(self, text):
         self.chat_area.configure(state="normal")
