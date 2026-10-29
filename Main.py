@@ -41,7 +41,7 @@ def get_time_based_greeting():
         return "Good afternoon, Boss."
     if 17 <= hour < 21:
         return "Good evening, Boss."
-    return "Hello, Boss."  # no night greeting at startup
+    return "Hello, Boss."
 
 
 def get_night_session_closing_message():
@@ -271,6 +271,28 @@ def is_date_request(text):
     return any(re.search(pattern, text) for pattern in patterns)
 
 
+def is_exit_request(text):
+    cleaned = normalize_input(text)
+    exit_phrases = [
+        r"\bbye\b",
+        r"\bgoodbye\b",
+        r"\bsee you\b",
+        r"\bshutdown\b",
+        r"\bturn off\b",
+        r"\bclose up\b",
+        r"\bquit\b",
+        r"\bexit\b",
+        r"\bend session\b",
+        r"\bthat's all\b",
+        r"\bthat's it\b",
+        r"\bgo to sleep\b",
+        r"\bwe are done\b",
+        r"\bcatch you later\b",
+        r"\buntil next time\b"
+    ]
+    return any(re.search(pattern, cleaned) for pattern in exit_phrases)
+
+
 def generate_assistant_reply(user_input):
     memory_text = recall_memories()
     messages = build_chat_messages(user_input, memory_text)
@@ -297,7 +319,7 @@ def handle_user_input(user_input):
 
     lower_input = user_input.lower()
 
-    if lower_input == "exit":
+    if lower_input == "exit" or is_exit_request(user_input):
         conn.close()
         return get_night_session_closing_message()
 
@@ -350,7 +372,7 @@ def handle_user_input(user_input):
 def run_cli():
     print("Doll is online.")
     print(get_time_based_greeting())
-    print("Type 'exit' to shut down.\n")
+    print("Type 'bye' or 'exit' to end the session.\n")
 
     while True:
         user_input = input("You: ")
@@ -360,7 +382,7 @@ def run_cli():
         print(response)
         print()
 
-        if user_input.lower() == "exit":
+        if user_input.lower() == "exit" or is_exit_request(user_input):
             break
 
 
@@ -398,7 +420,7 @@ class DollGUI:
         self.input_box.bind("<Return>", self.on_send)
         self.send_button.configure(command=self.on_send)
 
-        self.append_text(f"Doll is online.\n{get_time_based_greeting()}\nType 'exit' to shut down.\n")
+        self.append_text(f"Doll is online.\n{get_time_based_greeting()}\nType 'bye' or 'exit' to end the session.\n")
 
     def append_text(self, text):
         self.chat_area.configure(state="normal")
@@ -418,7 +440,7 @@ class DollGUI:
         response = handle_user_input(user_input)
         self.append_text(f"Doll: {response}\n\n")
 
-        if user_input.lower() == "exit":
+        if user_input.lower() == "exit" or is_exit_request(user_input):
             self.root.after(250, self.root.destroy)
 
 
