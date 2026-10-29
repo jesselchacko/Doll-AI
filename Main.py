@@ -2,7 +2,6 @@ from ollama import chat
 import sqlite3
 import re
 from datetime import datetime
-from difflib import SequenceMatcher
 
 # -----------------------
 # Database Setup
@@ -147,16 +146,22 @@ def recall_memories():
     return "\n".join([row[0] for row in rows])
 
 
-def is_time_request(text):
-
+def normalize_input(text):
     text = text.lower().strip()
+    text = re.sub(r"[^a-z0-9\s?']", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text
 
+
+def is_time_request(text):
+    text = normalize_input(text)
     if not text:
         return False
 
     patterns = [
-        r"\b(what|what's|whats)\s+(the\s+)?time\b",
-        r"\b(what\s+time|what's\s+the\s+time|what\s+is\s+the\s+time|tell\s+me\s+the\s+time)\b",
+        r"\b(what|what's|whats|tell|show|give|is)\s+(me\s+)?(the\s+)?time\b",
+        r"\bwhat\s+is\s+(the\s+)?time\b",
+        r"\btime\??\b",
         r"\b(time)\s+(is|is it|now|right now)\b",
         r"\bcurrent\s+time\b",
         r"\bwhat\s+time\b"
@@ -166,15 +171,14 @@ def is_time_request(text):
 
 
 def is_date_request(text):
-
-    text = text.lower().strip()
-
+    text = normalize_input(text)
     if not text:
         return False
 
     patterns = [
-        r"\b(what|what's|whats)\s+(the\s+)?date\b",
-        r"\b(what\s+date|what's\s+the\s+date|what\s+is\s+the\s+date|tell\s+me\s+the\s+date)\b",
+        r"\b(what|what's|whats|tell|show|give|is)\s+(me\s+)?(the\s+)?date\b",
+        r"\bwhat\s+is\s+(the\s+)?date\b",
+        r"\bdate\??\b",
         r"\b(date)\s+(is|is it|today|now)\b",
         r"\bcurrent\s+date\b",
         r"\b(today|todays|today's)\s+(date|day)\b",
