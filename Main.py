@@ -136,7 +136,64 @@ MEMORIES:
 # Functions
 # -----------------------
 
+
+def format_memory_fact(fact):
+    text = (fact or "").strip()
+    if not text:
+        return ""
+
+    text = re.sub(r"\s+", " ", text)
+    lowered = text.lower()
+
+    # Standardized direct fact patterns
+    patterns = [
+        ("i am ", "You are {}."),
+        ("i'm ", "You are {}."),
+        ("im ", "You are {}."),
+        ("my name is ", "Your name is {}."),
+        ("my age is ", "You are {} years old."),
+        ("my gender is ", "You are {}."),
+        ("my favorite ", "Your favorite {}."),
+        ("my ", "Your {}."),
+        ("i like ", "You like {}."),
+        ("i love ", "You love {}."),
+        ("i prefer ", "You prefer {}."),
+        ("i work as ", "You work as {}."),
+        ("i work at ", "You work at {}."),
+        ("i started working on you on ", "You started working on me on {}."),
+        ("i started working on me on ", "You started working on me on {}."),
+        ("i started working on doll on ", "You started working on me on {}."),
+        ("i started building you on ", "You started building me on {}."),
+        ("i started building me on ", "You started building me on {}."),
+        ("i started working on ", "You started working on {}."),
+        ("i started building ", "You started building {}."),
+        ("i will turn ", "You will turn {}."),
+        ("you are ", "{}"),
+        ("your ", "{}"),
+    ]
+
+    for prefix, template in patterns:
+        if lowered.startswith(prefix):
+            value = text[len(prefix):]
+            if template == "{}":
+                sentence = value
+            else:
+                sentence = template.format(value)
+            if sentence and not sentence.endswith((".", "!", "?")):
+                sentence += "."
+            return sentence
+
+    if text.endswith((".", "!", "?")):
+        return text
+    return f"{text}."
+
+
 def remember(fact):
+    fact = (fact or "").strip()
+    if not fact:
+        return False
+
+    fact = format_memory_fact(fact)
     fact = fact.strip()
 
     cursor.execute(
@@ -157,6 +214,11 @@ def remember(fact):
 
 
 def forget(fact):
+    fact = (fact or "").strip()
+    if not fact:
+        return False
+
+    fact = format_memory_fact(fact)
     fact = fact.strip()
 
     cursor.execute(
@@ -183,68 +245,23 @@ def recall_memories():
     return "\n".join([row[0] for row in rows])
 
 
-def format_memory_fact(fact):
-    text = fact.strip()
-    if not text:
-        return ""
-
-    lowered = text.lower()
-
-    if lowered.startswith("i am "):
-        return f"You are {text[5:]}."
-    if lowered.startswith("im "):
-        return f"You are {text[3:]}."
-    if lowered.startswith("i'm "):
-        return f"You are {text[4:]}."
-    if lowered.startswith("my name is "):
-        return f"Your name is {text[11:]}."
-    if lowered.startswith("my age is "):
-        age = text[9:]
-        return f"You are {age} years old."
-    if lowered.startswith("my favorite "):
-        return f"Your favorite {text[12:]}."
-    if lowered.startswith("my "):
-        return f"Your {text[3:]}."
-    if lowered.startswith("you are "):
-        return text if text.endswith((".", "!", "?")) else f"{text}."
-    if lowered.startswith("your "):
-        return text if text.endswith((".", "!", "?")) else f"{text}."
-    if lowered.startswith("i like "):
-        return f"You like {text[7:]}."
-    if lowered.startswith("i love "):
-        return f"You love {text[7:]}."
-    if lowered.startswith("i prefer "):
-        return f"You prefer {text[9:]}."
-    if lowered.startswith("i work as "):
-        return f"You work as {text[10:]}."
-    if text.endswith((".", "!", "?")):
-        return text
-    return f"{text}."
-
-
 def recall_memories_for_display():
-    cursor.execute("SELECT fact FROM memories")
+    cursor.execute("SELECT fact FROM memories ORDER BY id")
     rows = cursor.fetchall()
 
     if not rows:
         return "No memories stored yet, Boss."
 
-    formatted = [format_memory_fact(row[0]) for row in rows]
-    formatted = [item for item in formatted if item]
+    formatted = []
+    for row in rows:
+        cleaned = format_memory_fact(row[0])
+        if cleaned and cleaned.strip():
+            formatted.append(cleaned.strip())
 
     if not formatted:
         return "No memories stored yet, Boss."
 
-    if len(formatted) == 1:
-        sentence = formatted[0]
-        if sentence.lower().startswith("you are "):
-            return f"I remember that {sentence.lower()}"
-        if sentence.lower().startswith("your "):
-            return f"I remember that {sentence.lower()}"
-        return f"I remember that {sentence}"
-
-    combined = " ".join(formatted)
-    return f"I remember that {combined.lower()}"
+    return "I remember that " + " ".join(formatted)
 
 
 def normalize_input(text):
