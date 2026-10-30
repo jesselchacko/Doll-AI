@@ -145,7 +145,7 @@ def format_memory_fact(fact):
     text = re.sub(r"\s+", " ", text)
     lowered = text.lower()
 
-    # Already-normalized memory facts should be kept as-is.
+    # Always preserve already-normalized memory facts.
     if lowered.startswith("you are "):
         return text if text.endswith((".", "!", "?")) else f"{text}."
     if lowered.startswith("your "):
@@ -198,12 +198,11 @@ def remember(fact):
     if not fact:
         return False
 
-    fact = format_memory_fact(fact)
-    fact = fact.strip()
+    normalized = format_memory_fact(fact).strip()
 
     cursor.execute(
         "SELECT fact FROM memories WHERE fact = ?",
-        (fact,)
+        (normalized,)
     )
 
     if cursor.fetchone():
@@ -211,7 +210,7 @@ def remember(fact):
 
     cursor.execute(
         "INSERT INTO memories (fact) VALUES (?)",
-        (fact,)
+        (normalized,)
     )
 
     conn.commit()
@@ -223,7 +222,7 @@ def forget(fact):
     if not fact:
         return False
 
-    # Delete by numeric memory index (1-based) as shown in show memories
+    # Delete by numeric memory index shown in show memories
     if re.fullmatch(r"\d+", fact):
         rows = get_memory_rows()
         index = int(fact)
@@ -234,16 +233,17 @@ def forget(fact):
             return True
         return False
 
-    # Delete by exact or partial memory match, after canonicalization
-    fact_text = format_memory_fact(fact).strip()
+    # Delete by exact or partial memory match
+    match_text = format_memory_fact(fact).strip().lower()
     rows = get_memory_rows()
 
     for row_id, stored_fact in rows:
         normalized_stored = re.sub(r"\s+", " ", stored_fact.strip())
+        stored_lower = normalized_stored.lower()
         if (
-            normalized_stored.lower() == fact_text.lower()
-            or fact_text.lower() in normalized_stored.lower()
-            or normalized_stored.lower() in fact_text.lower()
+            stored_lower == match_text
+            or match_text in stored_lower
+            or stored_lower in match_text
         ):
             cursor.execute("DELETE FROM memories WHERE id = ?", (row_id,))
             conn.commit()
@@ -258,32 +258,27 @@ def clear_memories():
 
 
 def recall_memories():
-    cursor.execute("SELECT fact FROM memories")
-    rows = cursor.fetchall()
-
+    rows = get_memory_rows()
     if not rows:
         return "No memories stored yet, Boss."
-
-    return "\n".join([row[0] for row in rows])
+    return "\n".join(row[1] for row in rows)
 
 
 def recall_memories_for_display():
-    cursor.execute("SELECT fact FROM memories ORDER BY id")
-    rows = cursor.fetchall()
-
+    rows = get_memory_rows()
     if not rows:
         return "No memories stored yet, Boss."
 
-    formatted = []
-    for index, row in enumerate(rows, start=1):
-        cleaned = format_memory_fact(row[1])
+    lines = []
+    for index, (_, fact) in enumerate(rows, start=1):
+        cleaned = format_memory_fact(fact)
         if cleaned and cleaned.strip():
-            formatted.append(f"{index}. {cleaned.strip()}")
+            lines.append(f"{index}. {cleaned.strip()}")
 
-    if not formatted:
+    if not lines:
         return "No memories stored yet, Boss."
 
-    return "I remember that " + " ".join(formatted)
+    return "\n".join(lines)
 
 
 def normalize_input(text):
@@ -348,12 +343,11 @@ def extract_date_from_text(text):
 
 
 def find_date_in_memories(keywords):
-    cursor.execute("SELECT fact FROM memories")
-    rows = cursor.fetchall()
-    for row in rows:
-        fact = row[0].lower()
-        if any(keyword in fact for keyword in keywords):
-            parsed = extract_date_from_text(fact)
+    rows = get_memory_rows()
+    for _, fact in rows:
+        fact_lower = fact.lower()
+        if any(keyword in fact_lower for keyword in keywords):
+            parsed = extract_date_from_text(fact_lower)
             if parsed:
                 return parsed
     return None
@@ -558,7 +552,7 @@ def handle_user_input(user_input):
             return "I have forgotten that memory, Boss."
         return "I couldn't find that memory, Boss."
 
-    if lower_input == "show memories":
+    if lower_input in ("show memories", "show memory", "show my memories"):
         return recall_memories_for_display()
 
     if lower_input == "clear memories":
@@ -726,7 +720,8 @@ class DollGUI:
         self.set_status("Chat cleared")
 
     def on_show_memories(self):
-        self.append_text(f"\nDoll: {recall_memories_for_display()}\n\n")
+        message = recall_memories_for_display()
+        self.append_text(f"\nDoll: {message}\n\n")
         self.set_status("Displaying memories")
 
     def on_clear_memories(self):
