@@ -289,6 +289,104 @@ def is_date_request(text):
     return any(re.search(pattern, text) for pattern in patterns)
 
 
+def parse_date_string(date_text):
+    date_text = (date_text or "").strip()
+    if not date_text:
+        return None
+
+    cleaned = re.sub(r"\s+", " ", date_text)
+    cleaned = cleaned.strip(". ,")
+
+    for fmt in (
+        "%Y-%m-%d",
+        "%d %B %Y",
+        "%d %b %Y",
+        "%B %d %Y",
+        "%b %d %Y",
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%m/%d/%Y",
+        "%m-%d-%Y",
+    ):
+        try:
+            return datetime.strptime(cleaned, fmt).date()
+        except ValueError:
+            pass
+
+    return None
+
+
+def extract_date_from_text(text):
+    candidate_patterns = [
+        r"\b\d{4}-\d{2}-\d{2}\b",
+        r"\b\d{1,2}\s+[A-Za-z]+\s+\d{4}\b",
+        r"\b\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\b",
+        r"\b[A-Za-z]+\s+\d{1,2},?\s+\d{4}\b",
+        r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",
+    ]
+
+    for pattern in candidate_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            date_value = match.group(0)
+            parsed = parse_date_string(date_value)
+            if parsed:
+                return parsed
+    return None
+
+
+def find_date_in_memories(keywords):
+    cursor.execute("SELECT fact FROM memories")
+    rows = cursor.fetchall()
+    for row in rows:
+        fact = row[0].lower()
+        if any(keyword in fact for keyword in keywords):
+            parsed = extract_date_from_text(fact)
+            if parsed:
+                return parsed
+    return None
+
+
+def is_days_since_request(text):
+    cleaned = normalize_input(text)
+    patterns = [
+        r"\bhow\s+many\s+days\b",
+        r"\bhow\s+long\s+has\s+it\s+been\b",
+        r"\bhow\s+long\s+have\s+we\s+been\b",
+        r"\bhow\s+long\s+since\b",
+        r"\bdays\s+since\b",
+        r"\bstarted\s+working\s+on\s+you\b",
+        r"\bstarted\s+working\s+on\s+me\b",
+    ]
+    return any(re.search(pattern, cleaned) for pattern in patterns)
+
+
+def get_days_since_start_answer(text):
+    lowered = normalize_input(text)
+
+    keywords = [
+        "started working on you",
+        "started working on me",
+        "started working on doll",
+        "started building you",
+        "started building me",
+    ]
+
+    date_found = find_date_in_memories(keywords)
+    if date_found:
+        delta = (datetime.now().date() - date_found).days
+        return f"It has been {delta} days since you started working on me, Boss."
+
+    phrase_match = re.search(r"(?:on|since)\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4}|\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})", lowered)
+    if phrase_match:
+        target_date = parse_date_string(phrase_match.group(1))
+        if target_date:
+            delta = (datetime.now().date() - target_date).days
+            return f"It has been {delta} days since that date, Boss."
+
+    return None
+
+
 def is_exit_request(text):
     cleaned = normalize_input(text)
     exit_phrases = [
@@ -380,6 +478,11 @@ def handle_user_input(user_input):
     if is_date_request(user_input):
         current_date = datetime.now().strftime("%d %B %Y")
         return f"Today's date is {current_date}, Boss."
+
+    if is_days_since_request(user_input):
+        exact_answer = get_days_since_start_answer(user_input)
+        if exact_answer:
+            return exact_answer
 
     return generate_assistant_reply(user_input)
 
