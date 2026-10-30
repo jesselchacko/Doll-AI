@@ -145,7 +145,6 @@ def format_memory_fact(fact):
     text = re.sub(r"\s+", " ", text)
     lowered = text.lower()
 
-    # Standardized direct fact patterns
     patterns = [
         ("i am ", "You are {}."),
         ("i'm ", "You are {}."),
@@ -175,10 +174,7 @@ def format_memory_fact(fact):
     for prefix, template in patterns:
         if lowered.startswith(prefix):
             value = text[len(prefix):]
-            if template == "{}":
-                sentence = value
-            else:
-                sentence = template.format(value)
+            sentence = value if template == "{}" else template.format(value)
             if sentence and not sentence.endswith((".", "!", "?")):
                 sentence += "."
             return sentence
@@ -186,6 +182,11 @@ def format_memory_fact(fact):
     if text.endswith((".", "!", "?")):
         return text
     return f"{text}."
+
+
+def get_memory_rows():
+    cursor.execute("SELECT id, fact FROM memories ORDER BY id")
+    return cursor.fetchall()
 
 
 def remember(fact):
@@ -218,16 +219,33 @@ def forget(fact):
     if not fact:
         return False
 
-    fact = format_memory_fact(fact)
-    fact = fact.strip()
+    # Delete by numeric memory index (1-based) as shown in show memories
+    if re.fullmatch(r"\d+", fact):
+        rows = get_memory_rows()
+        index = int(fact)
+        if 1 <= index <= len(rows):
+            row_id = rows[index - 1][0]
+            cursor.execute("DELETE FROM memories WHERE id = ?", (row_id,))
+            conn.commit()
+            return True
+        return False
 
-    cursor.execute(
-        "DELETE FROM memories WHERE fact = ?",
-        (fact,)
-    )
+    # Delete by exact or partial memory match, after canonicalization
+    fact_text = format_memory_fact(fact).strip()
+    rows = get_memory_rows()
 
-    conn.commit()
-    return cursor.rowcount > 0
+    for row_id, stored_fact in rows:
+        normalized_stored = re.sub(r"\s+", " ", stored_fact.strip())
+        if (
+            normalized_stored.lower() == fact_text.lower()
+            or fact_text.lower() in normalized_stored.lower()
+            or normalized_stored.lower() in fact_text.lower()
+        ):
+            cursor.execute("DELETE FROM memories WHERE id = ?", (row_id,))
+            conn.commit()
+            return True
+
+    return False
 
 
 def clear_memories():
@@ -253,10 +271,10 @@ def recall_memories_for_display():
         return "No memories stored yet, Boss."
 
     formatted = []
-    for row in rows:
-        cleaned = format_memory_fact(row[0])
+    for index, row in enumerate(rows, start=1):
+        cleaned = format_memory_fact(row[1])
         if cleaned and cleaned.strip():
-            formatted.append(cleaned.strip())
+            formatted.append(f"{index}. {cleaned.strip()}")
 
     if not formatted:
         return "No memories stored yet, Boss."
