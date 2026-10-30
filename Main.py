@@ -2,7 +2,7 @@ import re
 import sqlite3
 import sys
 from datetime import datetime
-from tkinter import scrolledtext, ttk
+from tkinter import scrolledtext, ttk, messagebox
 import tkinter as tk
 
 from ollama import chat
@@ -416,6 +416,7 @@ class DollGUI:
         self.root.geometry("980x700")
         self.root.minsize(760, 540)
         self.root.configure(bg="#f3f5f9")
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
         try:
             style = ttk.Style()
@@ -506,7 +507,12 @@ class DollGUI:
         self.chat_area.configure(state="disabled")
         self.chat_area.see(tk.END)
 
+    def on_close(self):
+        if messagebox.askyesno("Exit Doll", "Do you want to end the session?"):
+            self.root.destroy()
+
     def on_clear_chat(self):
+        global conversation_summary
         conversation_history.clear()
         conversation_summary = ""
         self.append_text("\nDoll: The conversation history has been cleared, Boss.\n\n")
@@ -536,6 +542,9 @@ class DollGUI:
             return
 
         self.append_text(f"You: {user_input}\n")
+        self.set_status("Thinking...")
+        self.root.update_idletasks()
+
         response = handle_user_input(user_input)
         self.append_text(f"Doll: {response}\n\n")
         self.set_status(get_time_based_greeting())
