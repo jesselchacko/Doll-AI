@@ -1,7 +1,7 @@
 import re
 import sqlite3
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from tkinter import scrolledtext, ttk, messagebox
 import tkinter as tk
 
@@ -248,45 +248,16 @@ def recall_memories_for_display():
 
 
 def normalize_input(text):
+    if text is None:
+        return ""
+
     text = text.lower().strip()
-    text = re.sub(r"[^a-z0-9\s?']", " ", text)
+    text = text.replace("yopu", "you")
+    text = text.replace("youp", "you")
+    text = text.replace("yuo", "you")
+    text = re.sub(r"[^a-z0-9\s]", " ", text)
     text = re.sub(r"\s+", " ", text)
-    return text
-
-
-def is_time_request(text):
-    text = normalize_input(text)
-    if not text:
-        return False
-
-    patterns = [
-        r"\b(what|what's|whats|tell|show|give|is)\s+(me\s+)?(the\s+)?time\b",
-        r"\bwhat\s+is\s+(the\s+)?time\b",
-        r"\btime\??\b",
-        r"\b(time)\s+(is|is it|now|right now)\b",
-        r"\bcurrent\s+time\b",
-        r"\bwhat\s+time\b"
-    ]
-
-    return any(re.search(pattern, text) for pattern in patterns)
-
-
-def is_date_request(text):
-    text = normalize_input(text)
-    if not text:
-        return False
-
-    patterns = [
-        r"\b(what|what's|whats|tell|show|give|is)\s+(me\s+)?(the\s+)?date\b",
-        r"\bwhat\s+is\s+(the\s+)?date\b",
-        r"\bdate\??\b",
-        r"\b(date)\s+(is|is it|today|now)\b",
-        r"\bcurrent\s+date\b",
-        r"\b(today|todays|today's)\s+(date|day)\b",
-        r"\bwhat\s+date\b"
-    ]
-
-    return any(re.search(pattern, text) for pattern in patterns)
+    return text.strip()
 
 
 def parse_date_string(date_text):
@@ -317,7 +288,10 @@ def parse_date_string(date_text):
 
 
 def extract_date_from_text(text):
-    candidate_patterns = [
+    if not text:
+        return None
+
+    patterns = [
         r"\b\d{4}-\d{2}-\d{2}\b",
         r"\b\d{1,2}\s+[A-Za-z]+\s+\d{4}\b",
         r"\b\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\b",
@@ -325,11 +299,10 @@ def extract_date_from_text(text):
         r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",
     ]
 
-    for pattern in candidate_patterns:
+    for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            date_value = match.group(0)
-            parsed = parse_date_string(date_value)
+            parsed = parse_date_string(match.group(0))
             if parsed:
                 return parsed
     return None
@@ -347,42 +320,124 @@ def find_date_in_memories(keywords):
     return None
 
 
-def is_days_since_request(text):
+def is_time_request(text):
+    text = normalize_input(text)
+    if not text:
+        return False
+
+    patterns = [
+        r"\b(what|what's|whats|tell|show|give|is)\s+(me\s+)?(the\s+)?time\b",
+        r"\bwhat\s+is\s+(the\s+)?time\b",
+        r"\btime\??\b",
+        r"\b(time)\s+(is|is it|now|right now)\b",
+        r"\bcurrent\s+time\b",
+        r"\bwhat\s+time\b",
+    ]
+
+    return any(re.search(pattern, text) for pattern in patterns)
+
+
+def is_date_request(text):
+    text = normalize_input(text)
+    if not text:
+        return False
+
+    patterns = [
+        r"\b(what|what's|whats|tell|show|give|is)\s+(me\s+)?(the\s+)?date\b",
+        r"\bwhat\s+is\s+(the\s+)?date\b",
+        r"\bdate\??\b",
+        r"\b(date)\s+(is|is it|today|now)\b",
+        r"\bcurrent\s+date\b",
+        r"\b(today|todays|today's)\s+(date|day)\b",
+        r"\bwhat\s+date\b",
+    ]
+
+    return any(re.search(pattern, text) for pattern in patterns)
+
+
+def is_elapsed_days_request(text):
     cleaned = normalize_input(text)
     patterns = [
         r"\bhow\s+many\s+days\b",
-        r"\bhow\s+long\s+has\s+it\s+been\b",
-        r"\bhow\s+long\s+have\s+we\s+been\b",
+        r"\bhow\s+long\s+(?:has|have)\s+(?:it|i|we|you)\s+been\b",
         r"\bhow\s+long\s+since\b",
         r"\bdays\s+since\b",
-        r"\bstarted\s+working\s+on\s+you\b",
-        r"\bstarted\s+working\s+on\s+me\b",
+        r"\bstarted\s+working\s+on\s+(?:you|me|doll)\b",
+        r"\bworking\s+on\s+(?:you|me|doll)\b",
+        r"\b(?:since|from)\s+\d{1,2}\s+[a-z]+\s+\d{4}\b",
     ]
     return any(re.search(pattern, cleaned) for pattern in patterns)
 
 
-def get_days_since_start_answer(text):
-    lowered = normalize_input(text)
-
-    keywords = [
-        "started working on you",
-        "started working on me",
-        "started working on doll",
-        "started building you",
-        "started building me",
+def is_relative_date_request(text):
+    cleaned = normalize_input(text)
+    patterns = [
+        r"\b\d+\s+days?\s+(?:ago|before)\b",
+        r"\b\d+\s+days?\s+(?:from\s+now|hence|later)\b",
+        r"\bwhat\s+date\s+(?:was|is)\s+\d+\s+days?\s+(?:ago|before)\b",
+        r"\bwhat\s+date\s+is\s+\d+\s+days?\s+from\s+now\b",
+        r"\bin\s+\d+\s+days?\b",
     ]
+    return any(re.search(pattern, cleaned) for pattern in patterns)
 
-    date_found = find_date_in_memories(keywords)
-    if date_found:
-        delta = (datetime.now().date() - date_found).days
-        return f"It has been {delta} days since you started working on me, Boss."
 
-    phrase_match = re.search(r"(?:on|since)\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4}|\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})", lowered)
-    if phrase_match:
-        target_date = parse_date_string(phrase_match.group(1))
-        if target_date:
-            delta = (datetime.now().date() - target_date).days
-            return f"It has been {delta} days since that date, Boss."
+def get_elapsed_days_answer(text):
+    cleaned = normalize_input(text)
+
+    explicit_date = extract_date_from_text(cleaned)
+    if not explicit_date:
+        for keywords in (
+            ["started working on you", "started working on me", "started building you"],
+            ["started working on doll", "started building me"],
+        ):
+            found = find_date_in_memories(keywords)
+            if found:
+                explicit_date = found
+                break
+
+    if not explicit_date:
+        return None
+
+    delta_days = (datetime.now().date() - explicit_date).days
+    if delta_days < 0:
+        return f"That date is in the future, Boss."
+
+    return f"It has been {delta_days} days since {explicit_date.strftime('%d %B %Y')}, Boss."
+
+
+def get_relative_date_answer(text):
+    cleaned = normalize_input(text)
+    today = datetime.now().date()
+
+    match = re.search(r"(\d+)\s+days?\s+(?:ago|before)", cleaned)
+    if match:
+        days = int(match.group(1))
+        target = today - timedelta(days=days)
+        return f"{days} days ago was {target.strftime('%d %B %Y')}, Boss."
+
+    match = re.search(r"(\d+)\s+days?\s+(?:from\s+now|hence|later)", cleaned)
+    if match:
+        days = int(match.group(1))
+        target = today + timedelta(days=days)
+        return f"In {days} days, the date will be {target.strftime('%d %B %Y')}, Boss."
+
+    match = re.search(r"in\s+(\d+)\s+days?", cleaned)
+    if match:
+        days = int(match.group(1))
+        target = today + timedelta(days=days)
+        return f"In {days} days, the date will be {target.strftime('%d %B %Y')}, Boss."
+
+    match = re.search(r"what\s+date\s+(?:was|is)\s+(\d+)\s+days?\s+(?:ago|before)", cleaned)
+    if match:
+        days = int(match.group(1))
+        target = today - timedelta(days=days)
+        return f"{days} days ago was {target.strftime('%d %B %Y')}, Boss."
+
+    match = re.search(r"what\s+date\s+is\s+(\d+)\s+days?\s+from\s+now", cleaned)
+    if match:
+        days = int(match.group(1))
+        target = today + timedelta(days=days)
+        return f"In {days} days, the date will be {target.strftime('%d %B %Y')}, Boss."
 
     return None
 
@@ -404,7 +459,7 @@ def is_exit_request(text):
         r"\bgo to sleep\b",
         r"\bwe are done\b",
         r"\bcatch you later\b",
-        r"\buntil next time\b"
+        r"\buntil next time\b",
     ]
     return any(re.search(pattern, cleaned) for pattern in exit_phrases)
 
@@ -479,8 +534,13 @@ def handle_user_input(user_input):
         current_date = datetime.now().strftime("%d %B %Y")
         return f"Today's date is {current_date}, Boss."
 
-    if is_days_since_request(user_input):
-        exact_answer = get_days_since_start_answer(user_input)
+    if is_elapsed_days_request(user_input):
+        exact_answer = get_elapsed_days_answer(user_input)
+        if exact_answer:
+            return exact_answer
+
+    if is_relative_date_request(user_input):
+        exact_answer = get_relative_date_answer(user_input)
         if exact_answer:
             return exact_answer
 
