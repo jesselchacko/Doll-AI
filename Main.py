@@ -145,7 +145,7 @@ def format_memory_fact(fact):
     text = re.sub(r"\s+", " ", text)
     lowered = text.lower()
 
-    # Always preserve already-normalized memory facts.
+    # Keep already-normalized memory facts as-is.
     if lowered.startswith("you are "):
         return text if text.endswith((".", "!", "?")) else f"{text}."
     if lowered.startswith("your "):
@@ -188,6 +188,18 @@ def format_memory_fact(fact):
     return f"{text}."
 
 
+def normalize_legacy_memories():
+    rows = get_memory_rows()
+    for row_id, fact in rows:
+        cleaned = format_memory_fact(fact).strip()
+        if cleaned and cleaned != fact.strip():
+            cursor.execute(
+                "UPDATE memories SET fact = ? WHERE id = ?",
+                (cleaned, row_id)
+            )
+    conn.commit()
+
+
 def get_memory_rows():
     cursor.execute("SELECT id, fact FROM memories ORDER BY id")
     return cursor.fetchall()
@@ -222,7 +234,6 @@ def forget(fact):
     if not fact:
         return False
 
-    # Delete by numeric memory index shown in show memories
     if re.fullmatch(r"\d+", fact):
         rows = get_memory_rows()
         index = int(fact)
@@ -233,7 +244,6 @@ def forget(fact):
             return True
         return False
 
-    # Delete by exact or partial memory match
     match_text = format_memory_fact(fact).strip().lower()
     rows = get_memory_rows()
 
@@ -553,7 +563,33 @@ def handle_user_input(user_input):
         return "I couldn't find that memory, Boss."
 
     if lower_input in ("show memories", "show memory", "show my memories"):
-        return recall_memories_for_display()
+        memories = recall_memories()
+
+        response = chat(
+            model="qwen2.5:3b",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """
+You are Doll.
+
+The user is Boss.
+
+Summarize the stored memories naturally as if you are recalling them.
+
+Do not list them as numbered items.
+Speak conversationally.
+"""
+                },
+                {
+                    "role": "user",
+                    "content": memories
+                }
+            ],
+            options={"num_ctx": 1024, "num_predict": 80}
+        )
+
+        return response["message"]["content"]
 
     if lower_input == "clear memories":
         clear_memories()
@@ -764,6 +800,8 @@ def run_gui():
 # -----------------------
 # Entry Point
 # -----------------------
+
+normalize_legacy_memories()
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--cli":
