@@ -145,6 +145,12 @@ def format_memory_fact(fact):
     text = re.sub(r"\s+", " ", text)
     lowered = text.lower()
 
+    # Already-normalized memory facts should be kept as-is.
+    if lowered.startswith("you are "):
+        return text if text.endswith((".", "!", "?")) else f"{text}."
+    if lowered.startswith("your "):
+        return text if text.endswith((".", "!", "?")) else f"{text}."
+
     patterns = [
         ("i am ", "You are {}."),
         ("i'm ", "You are {}."),
@@ -167,14 +173,12 @@ def format_memory_fact(fact):
         ("i started working on ", "You started working on {}."),
         ("i started building ", "You started building {}."),
         ("i will turn ", "You will turn {}."),
-        ("you are ", "{}"),
-        ("your ", "{}"),
     ]
 
     for prefix, template in patterns:
         if lowered.startswith(prefix):
             value = text[len(prefix):]
-            sentence = value if template == "{}" else template.format(value)
+            sentence = template.format(value)
             if sentence and not sentence.endswith((".", "!", "?")):
                 sentence += "."
             return sentence
