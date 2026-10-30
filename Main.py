@@ -415,15 +415,20 @@ class DollGUI:
         self.root.title("Doll v0.6")
         self.root.geometry("980x700")
         self.root.minsize(760, 540)
-        self.root.configure(bg="#f3f5f9")
+        self.root.configure(bg="#0f172a")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
         try:
             style = ttk.Style()
             style.theme_use("clam")
-            style.configure("TFrame", background="#f3f5f9")
-            style.configure("TEntry", padding=8, fieldbackground="#ffffff")
-            style.configure("TButton", padding=(12, 8), font=("Segoe UI", 10, "bold"))
+            style.configure("TFrame", background="#0f172a")
+            style.configure("TEntry", fieldbackground="#1f2937", foreground="#f8fafc", padding=8)
+            style.configure("TButton", background="#2563eb", foreground="#ffffff", padding=(12, 8), font=("Segoe UI", 10, "bold"))
+            style.map(
+                "TButton",
+                background=[("active", "#3b82f6"), ("pressed", "#1d4ed8")],
+                foreground=[("disabled", "#cbd5e1")]
+            )
         except Exception:
             pass
 
@@ -434,8 +439,8 @@ class DollGUI:
             header,
             text="Doll",
             font=("Segoe UI", 20, "bold"),
-            fg="#1f2a44",
-            bg="#f3f5f9",
+            fg="#f8fafc",
+            bg="#0f172a",
             anchor="w"
         )
         self.title_label.pack(fill=tk.X)
@@ -444,8 +449,8 @@ class DollGUI:
             header,
             text=get_time_based_greeting(),
             font=("Segoe UI", 10),
-            fg="#475569",
-            bg="#f3f5f9",
+            fg="#cbd5e1",
+            bg="#0f172a",
             anchor="w"
         )
         self.status_label.pack(fill=tk.X, pady=(4, 0))
@@ -457,9 +462,9 @@ class DollGUI:
             padx=12,
             pady=12,
             state="disabled",
-            bg="#ffffff",
-            fg="#1e293b",
-            insertbackground="#1e293b",
+            bg="#111827",
+            fg="#f8fafc",
+            insertbackground="#f8fafc",
             relief="flat"
         )
         self.chat_area.pack(fill=tk.BOTH, expand=True, padx=16, pady=(0, 10))
@@ -550,7 +555,7 @@ class DollGUI:
         self.set_status(get_time_based_greeting())
 
         if user_input.lower() == "exit" or is_exit_request(user_input):
-            self.root.after(250, self.root.destroy)
+            self.on_close()
 
 
 def run_gui():
