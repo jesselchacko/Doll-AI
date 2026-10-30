@@ -406,28 +406,80 @@ def run_cli():
 
 
 # -----------------------
-# GUI Interface (v0.5)
+# GUI Interface (v0.6)
 # -----------------------
 
 class DollGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Doll v0.5")
-        self.root.geometry("900x650")
-        self.root.minsize(700, 500)
+        self.root.title("Doll v0.6")
+        self.root.geometry("980x700")
+        self.root.minsize(760, 540)
+        self.root.configure(bg="#f3f5f9")
+
+        try:
+            style = ttk.Style()
+            style.theme_use("clam")
+            style.configure("TFrame", background="#f3f5f9")
+            style.configure("TEntry", padding=8, fieldbackground="#ffffff")
+            style.configure("TButton", padding=(12, 8), font=("Segoe UI", 10, "bold"))
+        except Exception:
+            pass
+
+        header = ttk.Frame(root, padding=(16, 16, 16, 8))
+        header.pack(fill=tk.X)
+
+        self.title_label = tk.Label(
+            header,
+            text="Doll",
+            font=("Segoe UI", 20, "bold"),
+            fg="#1f2a44",
+            bg="#f3f5f9",
+            anchor="w"
+        )
+        self.title_label.pack(fill=tk.X)
+
+        self.status_label = tk.Label(
+            header,
+            text=get_time_based_greeting(),
+            font=("Segoe UI", 10),
+            fg="#475569",
+            bg="#f3f5f9",
+            anchor="w"
+        )
+        self.status_label.pack(fill=tk.X, pady=(4, 0))
 
         self.chat_area = scrolledtext.ScrolledText(
             root,
             wrap=tk.WORD,
             font=("Segoe UI", 11),
-            padx=10,
-            pady=10,
-            state="disabled"
+            padx=12,
+            pady=12,
+            state="disabled",
+            bg="#ffffff",
+            fg="#1e293b",
+            insertbackground="#1e293b",
+            relief="flat"
         )
-        self.chat_area.pack(fill=tk.BOTH, expand=True, padx=12, pady=(12, 8))
+        self.chat_area.pack(fill=tk.BOTH, expand=True, padx=16, pady=(0, 10))
 
-        input_frame = ttk.Frame(root)
-        input_frame.pack(fill=tk.X, padx=12, pady=(0, 12))
+        actions_frame = ttk.Frame(root)
+        actions_frame.pack(fill=tk.X, padx=16, pady=(0, 10))
+
+        self.clear_chat_button = ttk.Button(actions_frame, text="Clear Chat")
+        self.clear_chat_button.pack(side=tk.LEFT, padx=(0, 8))
+
+        self.show_memories_button = ttk.Button(actions_frame, text="Show Memories")
+        self.show_memories_button.pack(side=tk.LEFT, padx=(0, 8))
+
+        self.clear_memories_button = ttk.Button(actions_frame, text="Clear Memories")
+        self.clear_memories_button.pack(side=tk.LEFT, padx=(0, 8))
+
+        self.summary_button = ttk.Button(actions_frame, text="Show Summary")
+        self.summary_button.pack(side=tk.LEFT)
+
+        input_frame = ttk.Frame(root, padding=(16, 0, 16, 16))
+        input_frame.pack(fill=tk.X)
 
         self.input_box = ttk.Entry(input_frame)
         self.input_box.pack(side=tk.LEFT, fill=tk.X, expand=True)
@@ -438,14 +490,43 @@ class DollGUI:
 
         self.input_box.bind("<Return>", self.on_send)
         self.send_button.configure(command=self.on_send)
+        self.clear_chat_button.configure(command=self.on_clear_chat)
+        self.show_memories_button.configure(command=self.on_show_memories)
+        self.clear_memories_button.configure(command=self.on_clear_memories)
+        self.summary_button.configure(command=self.on_show_summary)
 
         self.append_text(f"Doll is online.\n{get_time_based_greeting()}\nType 'bye' or 'exit' to end the session.\n")
+
+    def set_status(self, text):
+        self.status_label.configure(text=text)
 
     def append_text(self, text):
         self.chat_area.configure(state="normal")
         self.chat_area.insert(tk.END, text)
         self.chat_area.configure(state="disabled")
         self.chat_area.see(tk.END)
+
+    def on_clear_chat(self):
+        conversation_history.clear()
+        conversation_summary = ""
+        self.append_text("\nDoll: The conversation history has been cleared, Boss.\n\n")
+        self.set_status("Chat cleared")
+
+    def on_show_memories(self):
+        self.append_text(f"\nDoll: {recall_memories_for_display()}\n\n")
+        self.set_status("Displaying memories")
+
+    def on_clear_memories(self):
+        clear_memories()
+        self.append_text("\nDoll: All memories have been cleared, Boss.\n\n")
+        self.set_status("Memories cleared")
+
+    def on_show_summary(self):
+        if conversation_summary:
+            self.append_text(f"\nDoll: {conversation_summary}\n\n")
+        else:
+            self.append_text("\nDoll: There is no active conversation summary yet, Boss.\n\n")
+        self.set_status("Summary shown")
 
     def on_send(self, event=None):
         user_input = self.input_box.get().strip()
@@ -455,9 +536,9 @@ class DollGUI:
             return
 
         self.append_text(f"You: {user_input}\n")
-
         response = handle_user_input(user_input)
         self.append_text(f"Doll: {response}\n\n")
+        self.set_status(get_time_based_greeting())
 
         if user_input.lower() == "exit" or is_exit_request(user_input):
             self.root.after(250, self.root.destroy)
