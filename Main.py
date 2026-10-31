@@ -552,57 +552,53 @@ def is_exit_request(text):
 
 
 def generate_assistant_reply(user_input):
-    global conversation_summary
-    print("GENERATE_ASSISTANT_REPLY CALLED")
-
     memory_text = get_memory_context_for_prompt()
     messages = build_chat_messages(user_input, memory_text)
 
-    try:
-        response = chat(
-            model="qwen2.5:3b",
-            messages=messages,
-            options={"num_ctx": 1024, "num_predict": 120}
-        )
-    except Exception:
-        return get_model_unavailable_message()
+    response = chat(
+        model="qwen2.5:3b",
+        messages=messages,
+        options={"num_ctx": 1024, "num_predict": 120}
+    )
 
     assistant_reply = response["message"]["content"]
 
     conversation_history.append({"role": "user", "content": user_input})
     conversation_history.append({"role": "assistant", "content": assistant_reply})
-    conversation_history = conversation_history[-(MAX_CONVERSATION_TURNS * 2):]
-    persist_conversation_history()
     update_conversation_summary()
 
     return assistant_reply
 
 
 def handle_user_input(user_input):
+    print("STEP 1")
     print("HANDLE_USER_INPUT CALLED:", user_input)
     user_input = user_input.strip()
+    print("STEP 2")
 
     if not user_input:
         return "Type something, Boss."
 
     lower_input = user_input.lower()
 
+    print("STEP 3")
     if lower_input == "exit" or is_exit_request(user_input):
         conn.close()
         return get_night_session_closing_message()
 
+    print("STEP 4")
     if lower_input == "clear chat":
         conversation_history.clear()
         conversation_summary = ""
-        cursor.execute("DELETE FROM conversation_history")
-        conn.commit()
         return "The conversation history has been cleared, Boss."
 
+    print("STEP 5")
     if lower_input in ("show chat summary", "summarize chat"):
         if conversation_summary:
             return conversation_summary
         return "There is no active conversation summary yet, Boss."
 
+    print("STEP 6")
     if lower_input.startswith("remember "):
         fact = user_input[9:]
         saved = remember(fact)
@@ -610,6 +606,7 @@ def handle_user_input(user_input):
             return "I will remember that, Boss."
         return "I already know that, Boss."
 
+    print("STEP 7")
     if lower_input.startswith("forget "):
         fact = user_input[7:]
         deleted = forget(fact)
@@ -617,16 +614,16 @@ def handle_user_input(user_input):
             return "I have forgotten that memory, Boss."
         return "I couldn't find that memory, Boss."
 
+    print("STEP 8")
     if lower_input in ("show memories", "show memory", "show my memories"):
         memories = recall_memories()
 
-        try:
-            response = chat(
-                model="qwen2.5:3b",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": """
+        response = chat(
+            model="qwen2.5:3b",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """
 You are Doll.
 
 The user is Boss.
@@ -636,19 +633,18 @@ Summarize the stored memories naturally as if you are recalling them.
 Do not list them as numbered items.
 Speak conversationally.
 """
-                    },
-                    {
-                        "role": "user",
-                        "content": memories
-                    }
-                ],
-                options={"num_ctx": 1024, "num_predict": 80}
-            )
-        except Exception:
-            return memories
+                },
+                {
+                    "role": "user",
+                    "content": memories
+                }
+            ],
+            options={"num_ctx": 1024, "num_predict": 80}
+        )
 
         return response["message"]["content"]
 
+    print("STEP 9")
     if lower_input == "clear memories":
         clear_memories()
         return "All memories have been cleared, Boss."
@@ -671,6 +667,7 @@ Speak conversationally.
         if exact_answer:
             return exact_answer
 
+    print("STEP 10")
     print("PASSING TO MODEL:", user_input)
     return generate_assistant_reply(user_input)
 
@@ -811,8 +808,6 @@ class DollGUI:
         global conversation_summary
         conversation_history.clear()
         conversation_summary = ""
-        cursor.execute("DELETE FROM conversation_history")
-        conn.commit()
         self.append_text("\nDoll: The conversation history has been cleared, Boss.\n\n")
         self.set_status("Chat cleared")
 
@@ -834,22 +829,31 @@ class DollGUI:
         self.set_status("Summary shown")
 
     def on_send(self, event=None):
+        print("STEP 1")
         user_input = self.input_box.get().strip()
+        print("STEP 2")
         self.input_box.delete(0, tk.END)
 
         if not user_input:
             return
 
+        print("STEP 3")
         self.append_text(f"You: {user_input}\n")
+
+        print("STEP 4")
         self.set_status("Thinking...")
+
+        print("STEP 5")
         self.root.update_idletasks()
 
+        print("STEP 6")
         response = handle_user_input(user_input)
-        self.append_text(f"Doll: {response}\n\n")
-        self.set_status(get_time_based_greeting())
 
-        if user_input.lower() == "exit" or is_exit_request(user_input):
-            self.on_close()
+        print("STEP 7")
+        self.append_text(f"Doll: {response}\n\n")
+
+        print("STEP 8")
+        self.set_status(get_time_based_greeting())
 
 
 def run_gui():
