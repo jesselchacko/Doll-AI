@@ -579,6 +579,7 @@ def generate_assistant_reply(user_input):
 
 
 def handle_user_input(user_input):
+    print("HANDLE_USER_INPUT CALLED:", user_input)
     user_input = user_input.strip()
 
     if not user_input:
@@ -670,6 +671,7 @@ Speak conversationally.
         if exact_answer:
             return exact_answer
 
+    print("PASSING TO MODEL:", user_input)
     return generate_assistant_reply(user_input)
 
 
