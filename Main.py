@@ -21,6 +21,15 @@ CREATE TABLE IF NOT EXISTS memories (
 )
 """)
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS conversation_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
 conn.commit()
 
 # -----------------------
@@ -31,6 +40,54 @@ conversation_history = []
 conversation_summary = ""
 MAX_CONVERSATION_TURNS = 5
 MAX_MEMORY_FACTS = 5
+MODEL_AVAILABLE = False
+
+
+def load_conversation_history():
+    global conversation_history
+
+    cursor.execute(
+        "SELECT role, content FROM conversation_history ORDER BY id ASC"
+    )
+    rows = cursor.fetchall()
+    conversation_history = [
+        {"role": role, "content": content}
+        for role, content in rows
+    ]
+
+    if len(conversation_history) > MAX_CONVERSATION_TURNS * 2:
+        conversation_history = conversation_history[-(MAX_CONVERSATION_TURNS * 2):]
+
+
+def persist_conversation_history():
+    global conversation_history
+
+    if len(conversation_history) > MAX_CONVERSATION_TURNS * 2:
+        conversation_history = conversation_history[-(MAX_CONVERSATION_TURNS * 2):]
+
+    cursor.execute("DELETE FROM conversation_history")
+    if conversation_history:
+        cursor.executemany(
+            "INSERT INTO conversation_history (role, content) VALUES (?, ?)",
+            [(entry["role"], entry["content"]) for entry in conversation_history],
+        )
+    conn.commit()
+
+
+def validate_runtime_environment():
+    global MODEL_AVAILABLE
+
+    try:
+        chat(
+            model="qwen2.5:3b",
+            messages=[{"role": "user", "content": "ping"}],
+            options={"num_ctx": 256, "num_predict": 8},
+        )
+        MODEL_AVAILABLE = True
+        return True
+    except Exception:
+        MODEL_AVAILABLE = False
+        return False
 
 
 def get_time_based_greeting():
@@ -508,6 +565,11 @@ def is_exit_request(text):
 
 
 def generate_assistant_reply(user_input):
+    global conversation_summary
+
+    if not MODEL_AVAILABLE:
+        return "The local Ollama model is not available. Please run `ollama run qwen2.5:3b` and try again, Boss."
+
     memory_text = get_memory_context_for_prompt()
     messages = build_chat_messages(user_input, memory_text)
 
@@ -521,6 +583,8 @@ def generate_assistant_reply(user_input):
 
     conversation_history.append({"role": "user", "content": user_input})
     conversation_history.append({"role": "assistant", "content": assistant_reply})
+    conversation_history = conversation_history[-(MAX_CONVERSATION_TURNS * 2):]
+    persist_conversation_history()
     update_conversation_summary()
 
     return assistant_reply
@@ -541,6 +605,8 @@ def handle_user_input(user_input):
     if lower_input == "clear chat":
         conversation_history.clear()
         conversation_summary = ""
+        cursor.execute("DELETE FROM conversation_history")
+        conn.commit()
         return "The conversation history has been cleared, Boss."
 
     if lower_input in ("show chat summary", "summarize chat"):
@@ -564,6 +630,9 @@ def handle_user_input(user_input):
 
     if lower_input in ("show memories", "show memory", "show my memories"):
         memories = recall_memories()
+
+        if not MODEL_AVAILABLE:
+            return "The local Ollama model is not available. Please run `ollama run qwen2.5:3b` and try again, Boss."
 
         response = chat(
             model="qwen2.5:3b",
@@ -752,6 +821,8 @@ class DollGUI:
         global conversation_summary
         conversation_history.clear()
         conversation_summary = ""
+        cursor.execute("DELETE FROM conversation_history")
+        conn.commit()
         self.append_text("\nDoll: The conversation history has been cleared, Boss.\n\n")
         self.set_status("Chat cleared")
 
@@ -802,6 +873,8 @@ def run_gui():
 # -----------------------
 
 normalize_legacy_memories()
+load_conversation_history()
+validate_runtime_environment()
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--cli":
