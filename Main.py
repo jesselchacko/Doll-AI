@@ -78,22 +78,6 @@ def persist_conversation_history():
     conn.commit()
 
 
-def validate_runtime_environment():
-    global MODEL_AVAILABLE
-
-    try:
-        chat(
-            model="qwen2.5:3b",
-            messages=[{"role": "user", "content": "ping"}],
-            options={"num_ctx": 256, "num_predict": 8},
-        )
-        MODEL_AVAILABLE = True
-        return True
-    except Exception:
-        MODEL_AVAILABLE = False
-        return False
-
-
 def get_time_based_greeting():
     hour = datetime.now().hour
 
@@ -570,17 +554,17 @@ def is_exit_request(text):
 def generate_assistant_reply(user_input):
     global conversation_summary
 
-    if not MODEL_AVAILABLE:
-        return get_model_unavailable_message()
-
     memory_text = get_memory_context_for_prompt()
     messages = build_chat_messages(user_input, memory_text)
 
-    response = chat(
-        model="qwen2.5:3b",
-        messages=messages,
-        options={"num_ctx": 1024, "num_predict": 120}
-    )
+    try:
+        response = chat(
+            model="qwen2.5:3b",
+            messages=messages,
+            options={"num_ctx": 1024, "num_predict": 120}
+        )
+    except Exception:
+        return get_model_unavailable_message()
 
     assistant_reply = response["message"]["content"]
 
@@ -634,15 +618,13 @@ def handle_user_input(user_input):
     if lower_input in ("show memories", "show memory", "show my memories"):
         memories = recall_memories()
 
-        if not MODEL_AVAILABLE:
-            return memories
-
-        response = chat(
-            model="qwen2.5:3b",
-            messages=[
-                {
-                    "role": "system",
-                    "content": """
+        try:
+            response = chat(
+                model="qwen2.5:3b",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """
 You are Doll.
 
 The user is Boss.
@@ -652,14 +634,16 @@ Summarize the stored memories naturally as if you are recalling them.
 Do not list them as numbered items.
 Speak conversationally.
 """
-                },
-                {
-                    "role": "user",
-                    "content": memories
-                }
-            ],
-            options={"num_ctx": 1024, "num_predict": 80}
-        )
+                    },
+                    {
+                        "role": "user",
+                        "content": memories
+                    }
+                ],
+                options={"num_ctx": 1024, "num_predict": 80}
+            )
+        except Exception:
+            return memories
 
         return response["message"]["content"]
 
@@ -877,7 +861,6 @@ def run_gui():
 
 normalize_legacy_memories()
 load_conversation_history()
-validate_runtime_environment()
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--cli":
