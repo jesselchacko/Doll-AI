@@ -17,24 +17,6 @@ Doll communicates through a command-line interface using a locally hosted AI mod
 Persistent Memory
 Doll can remember information between sessions using SQLite.
 
-Supported commands:
-
-remember
-
-forget
-
-show memories
-
-clear memories
-
-Date and Time
-Doll can provide:
-
-Current date
-Current time
-Typo-Tolerant Commands
-Date and time requests support common spelling mistakes.
-
 Technology Stack
 AI
 Ollama
@@ -45,20 +27,7 @@ Database
 SQLite
 Version Control
 GitHub
-Installation
-1. Install Python
-Install Python and ensure pip is available.
 
-2. Install Ollama
-Download and install Ollama.
-
-3. Download Qwen
-ollama run qwen2.5:3b
-4. Install Dependencies
-pip install ollama
-5. Run Doll
-py main.py
-Roadmap
 Version 0.3
 Completed:
 
