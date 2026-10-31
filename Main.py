@@ -817,30 +817,22 @@ class DollGUI:
         self.set_status("Summary shown")
 
     def on_send(self, event=None):
-        print("STEP 1")
         user_input = self.input_box.get().strip()
-        print("STEP 2")
         self.input_box.delete(0, tk.END)
 
         if not user_input:
             return
 
-        print("STEP 3")
         self.append_text(f"You: {user_input}\n")
 
-        print("STEP 4")
         self.set_status("Thinking...")
 
-        print("STEP 5")
         self.root.update_idletasks()
 
-        print("STEP 6")
         response = handle_user_input(user_input)
 
-        print("STEP 7")
         self.append_text(f"Doll: {response}\n\n")
 
-        print("STEP 8")
         self.set_status(get_time_based_greeting())
 
 
