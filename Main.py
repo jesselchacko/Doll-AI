@@ -40,7 +40,11 @@ conversation_history = []
 conversation_summary = ""
 MAX_CONVERSATION_TURNS = 5
 MAX_MEMORY_FACTS = 5
-MODEL_AVAILABLE = False
+MODEL_AVAILABLE = True
+
+
+def get_model_unavailable_message():
+    return "The local Ollama model is not available. Please run `ollama run qwen2.5:3b` and try again, Boss."
 
 
 def load_conversation_history():
@@ -202,7 +206,6 @@ def format_memory_fact(fact):
     text = re.sub(r"\s+", " ", text)
     lowered = text.lower()
 
-    # Keep already-normalized memory facts as-is.
     if lowered.startswith("you are "):
         return text if text.endswith((".", "!", "?")) else f"{text}."
     if lowered.startswith("your "):
@@ -568,7 +571,7 @@ def generate_assistant_reply(user_input):
     global conversation_summary
 
     if not MODEL_AVAILABLE:
-        return "The local Ollama model is not available. Please run `ollama run qwen2.5:3b` and try again, Boss."
+        return get_model_unavailable_message()
 
     memory_text = get_memory_context_for_prompt()
     messages = build_chat_messages(user_input, memory_text)
@@ -632,7 +635,7 @@ def handle_user_input(user_input):
         memories = recall_memories()
 
         if not MODEL_AVAILABLE:
-            return "The local Ollama model is not available. Please run `ollama run qwen2.5:3b` and try again, Boss."
+            return memories
 
         response = chat(
             model="qwen2.5:3b",
