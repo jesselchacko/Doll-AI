@@ -571,34 +571,27 @@ def generate_assistant_reply(user_input):
 
 
 def handle_user_input(user_input):
-    print("STEP 1")
-    print("HANDLE_USER_INPUT CALLED:", user_input)
     user_input = user_input.strip()
-    print("STEP 2")
 
     if not user_input:
         return "Type something, Boss."
 
     lower_input = user_input.lower()
-
-    print("STEP 3")
+    
     if lower_input == "exit" or is_exit_request(user_input):
         conn.close()
         return get_night_session_closing_message()
 
-    print("STEP 4")
     if lower_input == "clear chat":
         conversation_history.clear()
         conversation_summary = ""
         return "The conversation history has been cleared, Boss."
 
-    print("STEP 5")
     if lower_input in ("show chat summary", "summarize chat"):
         if conversation_summary:
             return conversation_summary
         return "There is no active conversation summary yet, Boss."
 
-    print("STEP 6")
     if lower_input.startswith("remember "):
         fact = user_input[9:]
         saved = remember(fact)
@@ -606,7 +599,6 @@ def handle_user_input(user_input):
             return "I will remember that, Boss."
         return "I already know that, Boss."
 
-    print("STEP 7")
     if lower_input.startswith("forget "):
         fact = user_input[7:]
         deleted = forget(fact)
@@ -614,7 +606,6 @@ def handle_user_input(user_input):
             return "I have forgotten that memory, Boss."
         return "I couldn't find that memory, Boss."
 
-    print("STEP 8")
     if lower_input in ("show memories", "show memory", "show my memories"):
         memories = recall_memories()
 
@@ -644,7 +635,6 @@ Speak conversationally.
 
         return response["message"]["content"]
 
-    print("STEP 9")
     if lower_input == "clear memories":
         clear_memories()
         return "All memories have been cleared, Boss."
@@ -667,8 +657,6 @@ Speak conversationally.
         if exact_answer:
             return exact_answer
 
-    print("STEP 10")
-    print("PASSING TO MODEL:", user_input)
     return generate_assistant_reply(user_input)
 
 
