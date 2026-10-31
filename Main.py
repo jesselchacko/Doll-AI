@@ -553,6 +553,7 @@ def is_exit_request(text):
 
 def generate_assistant_reply(user_input):
     global conversation_summary
+    print("GENERATE_ASSISTANT_REPLY CALLED")
 
     memory_text = get_memory_context_for_prompt()
     messages = build_chat_messages(user_input, memory_text)
